@@ -85,6 +85,19 @@ function stripCodeFences(text) {
   return trimmed;
 }
 
+// Defensive: LLM output can look like valid JSON but still fail to parse
+// because of raw control characters sitting unescaped inside string values
+// (the most common cause of "looks valid but won't parse" JSON). Extract the
+// { ... } body and strip anything in that range before handing it to
+// JSON.parse.
+function extractAndSanitizeJson(text) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  const candidate = start !== -1 && end !== -1 && end > start ? text.slice(start, end + 1) : text;
+  // eslint-disable-next-line no-control-regex -- intentionally targeting raw control chars
+  return candidate.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+}
+
 class ClaudeCallError extends Error {
   constructor(message, status) {
     super(message);
@@ -135,11 +148,12 @@ async function callClaudeForListing(env, messages) {
 
   let listing;
   try {
-    listing = JSON.parse(stripCodeFences(textBlock.text));
-  } catch {
-    console.error("Failed to parse Claude JSON:", textBlock.text);
-    // TODO: remove the raw text from this error once fence-stripping is confirmed reliable.
-    throw new ClaudeCallError(`Claude's response wasn't valid JSON: ${textBlock.text}`, 502);
+    listing = JSON.parse(extractAndSanitizeJson(stripCodeFences(textBlock.text)));
+  } catch (err) {
+    console.error("Failed to parse Claude JSON:", err.message, textBlock.text);
+    // TODO: remove the raw text + parse error from this response once the
+    // fence-stripping / sanitization is confirmed reliable.
+    throw new ClaudeCallError(`Claude's response wasn't valid JSON (${err.message}): ${textBlock.text}`, 502);
   }
 
   return { listing, rawText: textBlock.text };
