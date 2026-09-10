@@ -16,7 +16,7 @@ const SYSTEM_PROMPT = `You are an expert Etsy SEO copywriter. You will be shown 
 
 Follow current Etsy guidance:
 - Title: hard cap of 140 characters. Favor a short, clear, buyer-readable title over old-style keyword-stuffing. Put the most important keyword first. Don't repeat keywords. Don't pad the title to 140 characters just because you can.
-- Tags: up to 13 tags, each hard-capped at 20 characters including spaces. Tags may include letters, numbers, spaces, apostrophes, hyphens, and accented characters. Don't repeat words already in the title unless a tag is meaningfully different (e.g. a synonym or related search term).
+- Tags: up to 13 tags, each hard-capped at 20 characters including spaces. Tags may include letters, numbers, spaces, apostrophes, hyphens, and accented characters. No word may repeat across the 13 tags (case-insensitive), ignoring common stopwords like "and", "for", "the", "with", "a", "an", "of". Each tag should target a distinct search phrase or word combination so the full tag set maximizes unique keyword coverage — do not use near-duplicate tags that just reorder or slightly reword the same idea. Before finalizing your output, check your own tag list word-by-word for repeats and revise any that overlap.
 - Description: open with concrete product facts and natural keyword usage in the first sentences. Do not copy the title verbatim. Do not write a keyword dump.
 
 Return STRICT JSON only. No markdown code fences, no preamble, no trailing commentary — just the JSON object, matching exactly this shape:
@@ -105,7 +105,7 @@ export async function onRequestPost({ request, env }) {
   if (!anthropicResponse.ok) {
     const errText = await anthropicResponse.text().catch(() => "");
     console.error("Anthropic API error:", anthropicResponse.status, errText);
-    return jsonError(`Claude API error ${anthropicResponse.status}: ${errText}`, 502);
+    return jsonError("Claude couldn't generate a listing right now. Please try again.", 502);
   }
 
   const anthropicData = await anthropicResponse.json();
