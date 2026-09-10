@@ -105,7 +105,7 @@ export async function onRequestPost({ request, env }) {
   if (!anthropicResponse.ok) {
     const errText = await anthropicResponse.text().catch(() => "");
     console.error("Anthropic API error:", anthropicResponse.status, errText);
-    return jsonError("Claude couldn't generate a listing right now. Please try again.", 502);
+    return jsonError(`Claude API error ${anthropicResponse.status}: ${errText}`, 502);
   }
 
   const anthropicData = await anthropicResponse.json();
