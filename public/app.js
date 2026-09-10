@@ -137,7 +137,7 @@ function loadImage(file) {
   });
 }
 
-function resizeImage(img, maxDim) {
+function resizeImage(img, maxDim, quality = 0.9) {
   const longestSide = Math.max(img.naturalWidth, img.naturalHeight);
   const scale = Math.min(1, maxDim / longestSide);
   const width = Math.round(img.naturalWidth * scale);
@@ -150,8 +150,21 @@ function resizeImage(img, maxDim) {
   ctx.drawImage(img, 0, 0, width, height);
 
   return new Promise((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.9);
+    canvas.toBlob((blob) => resolve(blob), "image/jpeg", quality);
   });
+}
+
+// Downscale + re-encode the photo before sending it to /api/generate.
+// Claude's vision input downscales anything above ~1568px on the long edge
+// anyway, so this loses no usable detail while keeping the base64 payload
+// well under the 10MB image limit.
+const API_IMAGE_MAX_DIM = 1568;
+const API_IMAGE_QUALITY = 0.85;
+
+async function buildApiImagePayload(file) {
+  const img = await loadImage(file);
+  const blob = await resizeImage(img, API_IMAGE_MAX_DIM, API_IMAGE_QUALITY);
+  return fileToDataUrl(blob);
 }
 
 function buildResizeRow(size, name, blob) {
@@ -212,11 +225,13 @@ generateBtn.addEventListener("click", async () => {
   generateBtn.textContent = "Generating…";
 
   try {
+    const apiImage = await buildApiImagePayload(originalFile);
+
     const response = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        image: imageBase64,
+        image: apiImage,
         notes: notesTextarea.value.trim(),
         productType: productTypeSelect.value,
       }),
