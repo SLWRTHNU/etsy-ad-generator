@@ -12,7 +12,7 @@ const PHYSICAL_GUIDANCE = `This is a physical, shippable item. The description c
 
 const DIGITAL_GUIDANCE = `This is a digital download — nothing is shipped. The description should mention instant download / file delivery where relevant. Also note in your own awareness (not required in the JSON) that Etsy digital listings don't support variations and must be listed separately from any physical version of the same design.`;
 
-const SYSTEM_PROMPT = `You are an expert Etsy SEO copywriter. You will be shown a product photo and optional free-text notes from the seller. Write Etsy-ready listing copy.
+const SYSTEM_PROMPT = `You are an expert Etsy SEO copywriter. You will usually be shown a product photo along with free-text notes from the seller, but a photo won't always be provided — sometimes you'll only get text notes. When there's no photo, do not mention or assume you saw one; generate the best possible listing from the notes alone, inferring reasonable details only where the notes support it and leaving suggested_attributes fields null where you genuinely don't know.
 
 Follow current Etsy guidance:
 - Title: hard cap of 140 characters. Favor a short, clear, buyer-readable title over old-style keyword-stuffing. Put the most important keyword first. Don't repeat keywords. Don't pad the title to 140 characters just because you can.
@@ -134,33 +134,37 @@ export async function onRequestPost({ request, env }) {
   }
 
   const { image, notes, productType } = body;
+  const hasImage = typeof image === "string" && image.startsWith("data:");
+  const trimmedNotes = typeof notes === "string" ? notes.trim() : "";
 
-  if (!image || typeof image !== "string" || !image.startsWith("data:")) {
-    return jsonError("A product photo is required.", 400);
+  if (!hasImage && !trimmedNotes) {
+    return jsonError("A product photo or some notes are required.", 400);
   }
   if (productType !== "physical" && productType !== "digital") {
     return jsonError("Product type must be 'physical' or 'digital'.", 400);
   }
 
-  const match = image.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/s);
-  if (!match) {
-    return jsonError("Couldn't read that image. Please try a different file.", 400);
-  }
-  const [, mediaType, base64Data] = match;
+  const userContent = [];
 
-  const guidance = productType === "digital" ? DIGITAL_GUIDANCE : PHYSICAL_GUIDANCE;
-  const notesText = notes && notes.trim() ? notes.trim() : "(no additional notes provided)";
-
-  const userContent = [
-    {
+  if (hasImage) {
+    const match = image.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/s);
+    if (!match) {
+      return jsonError("Couldn't read that image. Please try a different file.", 400);
+    }
+    const [, mediaType, base64Data] = match;
+    userContent.push({
       type: "image",
       source: { type: "base64", media_type: mediaType, data: base64Data },
-    },
-    {
-      type: "text",
-      text: `${guidance}\n\nSeller's notes:\n${notesText}\n\nReturn the JSON object described in your instructions, and nothing else.`,
-    },
-  ];
+    });
+  }
+
+  const guidance = productType === "digital" ? DIGITAL_GUIDANCE : PHYSICAL_GUIDANCE;
+  const notesText = trimmedNotes || "(no additional notes provided)";
+
+  userContent.push({
+    type: "text",
+    text: `${guidance}\n\nSeller's notes:\n${notesText}\n\nReturn the JSON object described in your instructions, and nothing else.`,
+  });
 
   if (!env.ANTHROPIC_API_KEY) {
     return jsonError("Server is missing its Anthropic API key.", 500);
