@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Etsy Listing Assistant</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1>Etsy Listing Assistant</h1>
+      <p class="subtitle">Upload a photo, add a few notes, get Etsy-ready copy and download-ready images.</p>
+    </header>
+
+    <main>
+      <!-- Feature 1: Image upload + resize -->
+      <section class="card" id="upload-section">
+        <h2>1. Product photo</h2>
+
+        <div id="drop-zone" class="drop-zone">
+          <p>Drag and drop an image here, or click to browse</p>
+          <p class="drop-zone-hint">JPG, PNG, or WEBP</p>
+          <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp" hidden>
+        </div>
+        <p id="upload-error" class="error-text" hidden></p>
+
+        <div id="preview-area" class="preview-area" hidden>
+          <img id="preview-image" alt="Product preview">
+          <button type="button" id="remove-image-btn" class="btn-secondary">Remove photo</button>
+        </div>
+
+        <div id="resize-area" class="resize-area" hidden>
+          <h3>Download-ready sizes</h3>
+          <div id="resize-list" class="resize-list"></div>
+          <button type="button" id="download-zip-btn" class="btn-primary" disabled>Download all as ZIP</button>
+        </div>
+      </section>
+
+      <!-- Feature 2 + 3: product type + notes -->
+      <section class="card">
+        <h2>2. Tell us about it</h2>
+
+        <label for="product-type">Product type</label>
+        <select id="product-type">
+          <option value="physical">Physical</option>
+          <option value="digital">Digital</option>
+        </select>
+
+        <label for="notes">Notes (optional)</label>
+        <textarea id="notes" rows="6" placeholder="Tell me about this product — as much or as little as you want. Materials, size, who it's for, what makes it special, etc."></textarea>
+        <p id="notes-warning" class="warning-text" hidden></p>
+      </section>
+
+      <!-- Feature 4: generate -->
+      <section class="card">
+        <button type="button" id="generate-btn" class="btn-primary btn-large">Generate Listing</button>
+        <p id="generate-error" class="error-text" hidden></p>
+      </section>
+
+      <!-- Output -->
+      <section class="card" id="output-section" hidden>
+        <h2>Your listing</h2>
+
+        <div class="output-field">
+          <div class="output-field-header">
+            <label>Title <span id="title-count" class="char-count"></span></label>
+            <button type="button" class="btn-copy" data-copy-target="title">Copy</button>
+          </div>
+          <p id="output-title" class="output-text"></p>
+        </div>
+
+        <div class="output-field">
+          <div class="output-field-header">
+            <label>Description</label>
+            <button type="button" class="btn-copy" data-copy-target="description">Copy</button>
+          </div>
+          <p id="output-description" class="output-text"></p>
+        </div>
+
+        <div class="output-field">
+          <div class="output-field-header">
+            <label>Tags</label>
+            <button type="button" class="btn-copy" id="copy-all-tags-btn">Copy all as comma-separated list</button>
+          </div>
+          <div id="output-tags" class="tag-list"></div>
+        </div>
+
+        <div class="output-field">
+          <div class="output-field-header">
+            <label>Suggested category</label>
+            <button type="button" class="btn-copy" data-copy-target="category">Copy</button>
+          </div>
+          <p id="output-category" class="output-text"></p>
+        </div>
+
+        <div class="output-field">
+          <label>Suggested attributes</label>
+          <dl id="output-attributes" class="attribute-list"></dl>
+        </div>
+
+        <p id="listing-note" class="listing-note"></p>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
