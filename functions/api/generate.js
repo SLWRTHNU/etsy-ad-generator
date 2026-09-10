@@ -16,7 +16,9 @@ const SYSTEM_PROMPT = `You are an expert Etsy SEO copywriter. You will be shown 
 
 Follow current Etsy guidance:
 - Title: hard cap of 140 characters. Favor a short, clear, buyer-readable title over old-style keyword-stuffing. Put the most important keyword first. Don't repeat keywords. Don't pad the title to 140 characters just because you can.
-- Tags: up to 13 tags, each hard-capped at 20 characters including spaces. Tags may include letters, numbers, spaces, apostrophes, hyphens, and accented characters. No word may repeat across the 13 tags (case-insensitive), ignoring common stopwords like "and", "for", "the", "with", "a", "an", "of". Each tag should target a distinct search phrase or word combination so the full tag set maximizes unique keyword coverage — do not use near-duplicate tags that just reorder or slightly reword the same idea. Before finalizing your output, check your own tag list word-by-word for repeats and revise any that overlap.
+- Tags: up to 13 tags, each hard-capped at 20 characters including spaces. Tags may include letters, numbers, spaces, apostrophes, hyphens, and accented characters. No word may repeat across the 13 tags (case-insensitive), ignoring common stopwords like "and", "for", "the", "with", "a", "an", "of". Each tag should target a distinct search phrase or word combination so the full tag set maximizes unique keyword coverage — do not use near-duplicate tags that just reorder or slightly reword the same idea.
+  Example of what NOT to do: "handmade leather wallet" and "leather wallet for men" both repeat "leather" and "wallet" — that's a violation even though the phrases differ. Fix it by making the second tag target a different angle entirely, e.g. "mens bifold gift" or "fathers day gift".
+  Before finalizing your output, mentally list all 13 tags together as a single set and scan them word-by-word for any word (other than a stopword) that shows up in more than one tag. If you find one, rewrite one of the offending tags to cover new ground instead.
 - Description: open with concrete product facts and natural keyword usage in the first sentences. Do not copy the title verbatim. Do not write a keyword dump.
 
 Return STRICT JSON only. No markdown code fences, no preamble, no trailing commentary — just the JSON object, matching exactly this shape:
@@ -34,6 +36,89 @@ Return STRICT JSON only. No markdown code fences, no preamble, no trailing comme
     "style": "string or null"
   }
 }`;
+
+const TAG_DUPLICATE_STOPWORDS = new Set(["and", "for", "the", "with", "a", "an", "of"]);
+const MAX_TAG_FIX_ATTEMPTS = 2;
+
+function tagWords(tag) {
+  return tag
+    .toLowerCase()
+    .split(/[^a-z0-9']+/)
+    .filter((word) => word && !TAG_DUPLICATE_STOPWORDS.has(word));
+}
+
+// Returns the list of words (excluding stopwords) that appear in more than
+// one tag, case-insensitive. Empty array means the tag set is clean.
+function findDuplicateTagWords(tags) {
+  const tagCounts = new Map();
+  for (const tag of tags) {
+    for (const word of new Set(tagWords(tag))) {
+      tagCounts.set(word, (tagCounts.get(word) || 0) + 1);
+    }
+  }
+  return [...tagCounts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([word]) => word);
+}
+
+class ClaudeCallError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
+  }
+}
+
+// Sends `messages` to the Anthropic API and returns { listing, rawText }.
+// Throws a ClaudeCallError (with an HTTP status) on any failure mode.
+async function callClaudeForListing(env, messages) {
+  let anthropicResponse;
+  try {
+    anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 4096,
+        output_config: { effort: "medium" },
+        system: SYSTEM_PROMPT,
+        messages,
+      }),
+    });
+  } catch {
+    throw new ClaudeCallError("Couldn't reach Claude. Please try again.", 502);
+  }
+
+  if (!anthropicResponse.ok) {
+    const errText = await anthropicResponse.text().catch(() => "");
+    console.error("Anthropic API error:", anthropicResponse.status, errText);
+    throw new ClaudeCallError("Claude couldn't generate a listing right now. Please try again.", 502);
+  }
+
+  const anthropicData = await anthropicResponse.json();
+
+  if (anthropicData.stop_reason === "refusal") {
+    throw new ClaudeCallError("Claude declined to generate copy for this image. Try a different photo or notes.", 422);
+  }
+
+  const textBlock = (anthropicData.content || []).find((block) => block.type === "text");
+  if (!textBlock) {
+    throw new ClaudeCallError("Claude returned an unexpected response. Please try again.", 502);
+  }
+
+  let listing;
+  try {
+    listing = JSON.parse(textBlock.text);
+  } catch {
+    console.error("Failed to parse Claude JSON:", textBlock.text);
+    throw new ClaudeCallError("Claude's response wasn't valid JSON. Please try again.", 502);
+  }
+
+  return { listing, rawText: textBlock.text };
+}
 
 export async function onRequestPost({ request, env }) {
   // NOTE: no per-user rate limiting yet — this endpoint is protected only by
@@ -81,50 +166,35 @@ export async function onRequestPost({ request, env }) {
     return jsonError("Server is missing its Anthropic API key.", 500);
   }
 
-  let anthropicResponse;
-  try {
-    anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 4096,
-        output_config: { effort: "medium" },
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userContent }],
-      }),
-    });
-  } catch {
-    return jsonError("Couldn't reach Claude. Please try again.", 502);
-  }
-
-  if (!anthropicResponse.ok) {
-    const errText = await anthropicResponse.text().catch(() => "");
-    console.error("Anthropic API error:", anthropicResponse.status, errText);
-    return jsonError("Claude couldn't generate a listing right now. Please try again.", 502);
-  }
-
-  const anthropicData = await anthropicResponse.json();
-
-  if (anthropicData.stop_reason === "refusal") {
-    return jsonError("Claude declined to generate copy for this image. Try a different photo or notes.", 422);
-  }
-
-  const textBlock = (anthropicData.content || []).find((block) => block.type === "text");
-  if (!textBlock) {
-    return jsonError("Claude returned an unexpected response. Please try again.", 502);
-  }
+  const messages = [{ role: "user", content: userContent }];
 
   let listing;
+  let rawText;
   try {
-    listing = JSON.parse(textBlock.text);
-  } catch {
-    console.error("Failed to parse Claude JSON:", textBlock.text);
-    return jsonError("Claude's response wasn't valid JSON. Please try again.", 502);
+    ({ listing, rawText } = await callClaudeForListing(env, messages));
+
+    // Safety net: the prompt asks Claude to keep tag words unique, but that
+    // instruction isn't followed 100% reliably. Validate server-side and, if
+    // duplicates slip through, ask Claude to fix just the tags array.
+    for (let attempt = 0; attempt < MAX_TAG_FIX_ATTEMPTS; attempt++) {
+      const duplicates = findDuplicateTagWords(Array.isArray(listing.tags) ? listing.tags : []);
+      if (duplicates.length === 0) break;
+
+      messages.push({ role: "assistant", content: rawText });
+      messages.push({
+        role: "user",
+        content: `Your "tags" array repeats these word(s) across more than one tag: ${duplicates.join(", ")}. Rewrite ONLY the "tags" array so no word (other than a common stopword) repeats across any tag — keep every other field exactly as before. Return the full JSON object in the same strict format described earlier, and nothing else.`,
+      });
+
+      ({ listing, rawText } = await callClaudeForListing(env, messages));
+    }
+    // If duplicates still remain after MAX_TAG_FIX_ATTEMPTS, we just return
+    // the last listing we got rather than looping forever.
+  } catch (err) {
+    if (err instanceof ClaudeCallError) {
+      return jsonError(err.message, err.status);
+    }
+    throw err;
   }
 
   return new Response(JSON.stringify(listing), {
