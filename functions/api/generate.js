@@ -19,7 +19,17 @@ Follow current Etsy guidance:
 - Tags: up to 13 tags, each hard-capped at 20 characters including spaces. Tags may include letters, numbers, spaces, apostrophes, hyphens, and accented characters. No word may repeat across the 13 tags (case-insensitive), ignoring common stopwords like "and", "for", "the", "with", "a", "an", "of". Each tag should target a distinct search phrase or word combination so the full tag set maximizes unique keyword coverage — do not use near-duplicate tags that just reorder or slightly reword the same idea.
   Example of what NOT to do: "handmade leather wallet" and "leather wallet for men" both repeat "leather" and "wallet" — that's a violation even though the phrases differ. Fix it by making the second tag target a different angle entirely, e.g. "mens bifold gift" or "fathers day gift".
   Before finalizing your output, mentally list all 13 tags together as a single set and scan them word-by-word for any word (other than a stopword) that shows up in more than one tag. If you find one, rewrite one of the offending tags to cover new ground instead.
-- Description: open with concrete product facts and natural keyword usage in the first sentences. Do not copy the title verbatim. Do not write a keyword dump.
+- Description structure: open with 1-2 sentences stating what the item is and who it's for, working the primary keyword in naturally — this opening also doubles as the Google search snippet, so it has to read well completely on its own. Then, in short paragraphs, address what it's made of, its size or dimensions, and shipping or delivery timing. Weave keyword variations naturally through the body instead of repeating the title or tags verbatim. Save any warmth or personality for near the end, after the practical details are covered. Close with a brief, natural call to action, like inviting the buyer to message with questions before ordering.
+
+Writing style (applies to both title and description) — write like a real seller describing their own product, not like ad copy generated from a template:
+  - Never use em dashes.
+  - Avoid generic marketing filler phrases like "elevate your space," "perfect for any occasion," or "look no further."
+  - Don't stack three or more adjectives in a row.
+  - Vary sentence length and structure — don't fall into a repetitive rhythm where every sentence has the same shape.
+
+Example (fake product, for pattern reference only — don't reuse its wording or details):
+  title: "Walnut Cutting Board with Juice Groove, Handmade Wood Serving Board for Kitchen"
+  description: "This walnut cutting board brings a warm, natural centerpiece to any kitchen counter, built for home cooks who want something sturdy enough for daily chopping and nice enough to double as a serving board.\n\nEach board is hand-sanded from a single slab of black walnut, about 16 by 10 inches and just under an inch thick, so it has real heft without being awkward to lift one-handed. A shallow juice groove runs along one edge to catch drips from raw meat or citrus.\n\nBoards ship within 2 to 3 business days in a padded box, and each one gets a coat of food-safe mineral oil before it goes out so it's ready to use right away.\n\nNo two boards look quite alike since the grain pattern depends on where the wood was cut, which is part of what makes each one feel personal. Message me before ordering if you'd like to see the specific board's grain first."
 
 Return STRICT JSON only. No markdown code fences, no preamble, no trailing commentary — just the JSON object, matching exactly this shape:
 
