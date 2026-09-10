@@ -1,3 +1,2 @@
-name = "etsy-ad-generator"
-compatibility_date = "2026-09-01"
-pages_build_output_dir = "public"
+# wrangler.toml
+name = 'etsy-ad-generator'
