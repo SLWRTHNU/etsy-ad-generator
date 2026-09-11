@@ -234,7 +234,7 @@ generateBtn.addEventListener("click", async () => {
   }
 
   generateBtn.disabled = true;
-  generateBtn.textContent = "Generating…";
+  generateBtn.innerHTML = '<span class="btn-spinner"></span> Generating…';
 
   try {
     const apiImage = originalFile ? await buildApiImagePayload(originalFile) : null;
@@ -302,14 +302,6 @@ function renderOutput(listing, productType) {
     outputAttributes.appendChild(dt);
     outputAttributes.appendChild(dd);
   });
-
-  if (productType === "digital") {
-    listingNote.textContent =
-      "Etsy digital listings: max 5 files, 20MB each (PDF, PNG, JPG, SVG, ZIP, MP3, MP4). No variations supported — list different versions separately.";
-  } else {
-    listingNote.textContent =
-      "Physical listings need a shipping profile set up in your Etsy shop before you can publish.";
-  }
 
   outputSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
