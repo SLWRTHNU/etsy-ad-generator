@@ -94,40 +94,8 @@ function extractAndSanitizeJson(text) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   const candidate = start !== -1 && end !== -1 && end > start ? text.slice(start, end + 1) : text;
-
-  let result = "";
-  let inString = false;
-  let escaped = false;
-
-  for (const char of candidate) {
-    if (inString) {
-      if (escaped) {
-        result += char;
-        escaped = false;
-      } else if (char === "\\") {
-        result += char;
-        escaped = true;
-      } else if (char === '"') {
-        result += char;
-        inString = false;
-      } else if (char === "\n") {
-        result += "\\n";
-      } else if (char === "\r") {
-        result += "\\r";
-      } else if (char === "\t") {
-        result += "\\t";
-      } else if (char.charCodeAt(0) < 0x20) {
-        // other stray control chars inside a string — drop them
-      } else {
-        result += char;
-      }
-    } else {
-      if (char === '"') inString = true;
-      result += char;
-    }
-  }
-
-  return result;
+  // eslint-disable-next-line no-control-regex -- intentionally targeting raw control chars
+  return candidate.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
 }
 
 class ClaudeCallError extends Error {
