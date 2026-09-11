@@ -88,15 +88,48 @@ function stripCodeFences(text) {
 
 // Defensive: LLM output can look like valid JSON but still fail to parse
 // because of raw control characters sitting unescaped inside string values
-// (the most common cause of "looks valid but won't parse" JSON). Extract the
-// { ... } body and strip anything in that range before handing it to
-// JSON.parse.
+// (the most common cause of "looks valid but won't parse" JSON) — most often
+// literal \n\n paragraph breaks in the description field. Extract the
+// { ... } body, then walk it tracking whether we're inside a JSON string:
+// inside a string, escape raw newline/CR/tab instead of stripping them (they
+// carry meaning) and drop other raw control chars (illegal, no safe escape);
+// outside a string, leave everything untouched.
 function extractAndSanitizeJson(text) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   const candidate = start !== -1 && end !== -1 && end > start ? text.slice(start, end + 1) : text;
-  // eslint-disable-next-line no-control-regex -- intentionally targeting raw control chars
-  return candidate.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+
+  let result = "";
+  let inString = false;
+  for (let i = 0; i < candidate.length; i++) {
+    const char = candidate[i];
+    const code = char.charCodeAt(0);
+
+    if (inString && char === "\\") {
+      result += char;
+      i++;
+      if (i < candidate.length) result += candidate[i];
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      result += char;
+      continue;
+    }
+
+    if (inString && code < 0x20) {
+      if (char === "\n") result += "\\n";
+      else if (char === "\r") result += "\\r";
+      else if (char === "\t") result += "\\t";
+      // else: drop other raw control chars
+      continue;
+    }
+
+    result += char;
+  }
+
+  return result;
 }
 
 class ClaudeCallError extends Error {
