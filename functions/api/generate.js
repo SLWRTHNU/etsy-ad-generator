@@ -49,6 +49,7 @@ Return STRICT JSON only. No markdown code fences, no preamble, no trailing comme
 
 const TAG_DUPLICATE_STOPWORDS = new Set(["and", "for", "the", "with", "a", "an", "of"]);
 const MAX_TAG_FIX_ATTEMPTS = 2;
+const MAX_LISTING_CALL_ATTEMPTS = 2;
 
 function tagWords(tag) {
   return tag
@@ -105,9 +106,9 @@ class ClaudeCallError extends Error {
   }
 }
 
-// Sends `messages` to the Anthropic API and returns { listing, rawText }.
+// Single attempt: sends `messages` to the Anthropic API and returns { listing, rawText }.
 // Throws a ClaudeCallError (with an HTTP status) on any failure mode.
-async function callClaudeForListing(env, messages) {
+async function callClaudeForListingOnce(env, messages) {
   let anthropicResponse;
   try {
     anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
@@ -150,13 +151,45 @@ async function callClaudeForListing(env, messages) {
   try {
     listing = JSON.parse(extractAndSanitizeJson(stripCodeFences(textBlock.text)));
   } catch (err) {
-    console.error("Failed to parse Claude JSON:", err.message, textBlock.text);
-    // TODO: remove the raw text + parse error from this response once the
-    // fence-stripping / sanitization is confirmed reliable.
-    throw new ClaudeCallError(`Claude's response wasn't valid JSON (${err.message}): ${textBlock.text}`, 502);
+    throw new JsonParseError(err.message, textBlock.text);
   }
 
   return { listing, rawText: textBlock.text };
+}
+
+class JsonParseError extends Error {
+  constructor(parseErrorMessage, rawText) {
+    super(parseErrorMessage);
+    this.rawText = rawText;
+  }
+}
+
+// Sends `messages` to the Anthropic API and returns { listing, rawText }.
+// If Claude's response isn't valid JSON, retries with a fresh call (same
+// messages, not a conversation continuation) up to MAX_LISTING_CALL_ATTEMPTS
+// times before giving up. Throws a ClaudeCallError on failure.
+async function callClaudeForListing(env, messages) {
+  let lastParseError;
+  for (let attempt = 1; attempt <= MAX_LISTING_CALL_ATTEMPTS; attempt++) {
+    try {
+      return await callClaudeForListingOnce(env, messages);
+    } catch (err) {
+      if (!(err instanceof JsonParseError)) throw err;
+      lastParseError = err;
+      console.error(
+        `Failed to parse Claude JSON (attempt ${attempt}/${MAX_LISTING_CALL_ATTEMPTS}):`,
+        err.message,
+        err.rawText,
+      );
+    }
+  }
+
+  // TODO: remove the raw text + parse error from this response once the
+  // fence-stripping / sanitization is confirmed reliable.
+  throw new ClaudeCallError(
+    `Claude's response wasn't valid JSON (${lastParseError.message}): ${lastParseError.rawText}`,
+    502,
+  );
 }
 
 export async function onRequestPost({ request, env }) {
